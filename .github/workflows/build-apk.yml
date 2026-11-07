@@ -9,6 +9,7 @@ on:
       - "lib/**"
       - "pubspec.yaml"
       - "pubspec.lock"
+      - "test/**"
   workflow_dispatch:
 
 concurrency:
