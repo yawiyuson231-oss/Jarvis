@@ -19,6 +19,21 @@ class AiException implements Exception {
       statusCode == null ? message : 'HTTP $statusCode: $message';
 }
 
+/// User-friendly result of a real request to the configured AI provider.
+class AiConnectionResult {
+  final bool success;
+  final String message;
+  final int? statusCode;
+  final Duration elapsed;
+
+  const AiConnectionResult({
+    required this.success,
+    required this.message,
+    required this.elapsed,
+    this.statusCode,
+  });
+}
+
 /// Structured intent classification result for JARVIS mode.
 enum JarvisIntentType {
   chat,
@@ -619,17 +634,265 @@ class JarvisIntent {
 /// Talks to OpenAI-compatible chat-completion endpoints
 /// (DeepSeek, OpenRouter, NVIDIA NIM, Ollama, or a custom base URL).
 class AiService {
-  AiService._();
+  AiService._({http.Client? client}) : _client = client ?? http.Client();
   static final AiService instance = AiService._();
 
-  final http.Client _client = http.Client();
+  /// Creates an isolated client for deterministic connection tests.
+  factory AiService.withClient(http.Client client) =>
+      AiService._(client: client);
+
+  final http.Client _client;
 
   /// True for local backends (Ollama etc.) that accept any/empty API key.
   bool get _isLocalBackend {
     final settings = SettingsService.instance;
-    if (settings.provider == 'ollama' || settings.localFirstPrivacyMode) return true;
-    final host = Uri.tryParse(settings.baseUrl)?.host ?? '';
-    return host == 'localhost' || host == '127.0.0.1' || host == '[::1]';
+    if (settings.provider == 'ollama' || settings.localFirstPrivacyMode) {
+      return true;
+    }
+    final host = Uri.tryParse(settings.baseUrl)?.host.toLowerCase() ?? '';
+    return host == 'localhost' || host == '127.0.0.1' || host == '::1';
+  }
+
+  /// Builds the OpenAI-compatible endpoint from either a base URL or a full
+  /// chat-completions URL. A missing scheme defaults to HTTPS, except for
+  /// local/private addresses where HTTP is the common configuration.
+  static Uri chatCompletionsUri(String baseUrl) {
+    var value = baseUrl.trim();
+    if (value.isEmpty) {
+      throw const AiException('No base URL configured.');
+    }
+
+    if (!RegExp(r'^https?://', caseSensitive: false).hasMatch(value)) {
+      if (value.contains('://')) {
+        throw const AiException(
+          'Unsupported Base URL scheme. Use an http:// or https:// URL.',
+        );
+      }
+      final isPrivateAddress = RegExp(
+        r'^(localhost|127\.0\.0\.1|\[?::1\]?|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)',
+        caseSensitive: false,
+      ).hasMatch(value);
+      value = '${isPrivateAddress ? 'http' : 'https'}://$value';
+    }
+
+    final Uri uri;
+    try {
+      uri = Uri.parse(value);
+    } on FormatException {
+      throw const AiException(
+        'The Base URL is invalid. Example: https://api.openai.com/v1',
+      );
+    }
+    if ((uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) {
+      throw const AiException(
+        'The Base URL is invalid. Example: https://api.openai.com/v1',
+      );
+    }
+
+    var path = uri.path.replaceAll(RegExp(r'/+$'), '');
+    if (!path.endsWith('/chat/completions')) {
+      path = '$path/chat/completions';
+    }
+    if (!path.startsWith('/')) path = '/$path';
+    return uri.replace(path: path, fragment: '');
+  }
+
+  Uri _validateSettings(SettingsService settings) {
+    if (settings.apiKey.trim().isEmpty && !_isLocalBackend) {
+      throw const AiException(
+        'No API key configured. Paste your provider key in Settings, then tap Test connection.',
+      );
+    }
+    if (settings.model.trim().isEmpty) {
+      throw const AiException('No model name configured.');
+    }
+    return chatCompletionsUri(settings.baseUrl);
+  }
+
+  Map<String, String> _buildHeaders(
+    SettingsService settings, {
+    required bool stream,
+  }) {
+    // Accept a key copied together with the word "Bearer" without sending
+    // the invalid "Authorization: Bearer Bearer …" header.
+    final apiKey = settings.apiKey.trim().replaceFirst(
+      RegExp(r'^Bearer\s+', caseSensitive: false),
+      '',
+    ).trim();
+    return <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': stream ? 'text/event-stream' : 'application/json',
+      if (apiKey.isNotEmpty) 'Authorization': 'Bearer $apiKey',
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 14) '
+          'AppleWebKit/537.36 (KHTML, like Gecko) '
+          'Chrome/120.0.0.0 Mobile Safari/537.36',
+      if (settings.provider == 'openrouter') ...{
+        'HTTP-Referer': 'https://privateagent.local',
+        'X-Title': 'JARVIS',
+      },
+    };
+  }
+
+  Map<String, dynamic> _completionBody(
+    List<Map<String, dynamic>> messages,
+    SettingsService settings, {
+    required bool stream,
+    int? maxTokens,
+    double? temperature,
+  }) =>
+      <String, dynamic>{
+        'model': settings.model.trim(),
+        'messages': messages,
+        'max_tokens': maxTokens ?? settings.maxTokens,
+        'temperature': temperature ?? settings.temperature,
+        'stream': stream,
+      };
+
+  static String _responseDetail(String body) {
+    var detail = '';
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final error = decoded['error'];
+        if (error is Map) {
+          detail = (error['message'] ?? error['detail'] ?? '').toString();
+        } else if (error != null) {
+          detail = error.toString();
+        }
+        if (detail.isEmpty) {
+          detail = (decoded['message'] ?? decoded['detail'] ?? '').toString();
+        }
+      }
+    } catch (_) {
+      // Some gateways return plain text or an HTML error page.
+    }
+    if (detail.isEmpty) detail = body;
+    detail = detail
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'Bearer\s+\S+', caseSensitive: false), 'Bearer [redacted]')
+        .replaceAll(RegExp(r'\bsk-[A-Za-z0-9_-]{8,}'), '[redacted]')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (detail.length > 260) detail = '${detail.substring(0, 260)}…';
+    return detail;
+  }
+
+  static AiException _responseError(int statusCode, String body) {
+    final String hint;
+    switch (statusCode) {
+      case 400:
+      case 422:
+        hint = 'The provider rejected the request. Check the model name and Base URL.';
+        break;
+      case 401:
+        hint = 'Authentication failed. Check that your API key is correct and active.';
+        break;
+      case 402:
+        hint = 'Provider billing is required. Check your account balance or credits.';
+        break;
+      case 403:
+        hint = 'Access denied. Check the API key permissions and provider access.';
+        break;
+      case 404:
+        hint = 'Endpoint or model not found. Check the Base URL and Model fields.';
+        break;
+      case 408:
+        hint = 'The provider timed out. Check your connection and try again.';
+        break;
+      case 429:
+        hint = 'Rate limit or usage quota reached. Check provider limits/credits or try again later.';
+        break;
+      default:
+        hint = statusCode >= 500
+            ? 'The AI provider is temporarily unavailable. Try again shortly.'
+            : 'The AI provider returned an unexpected error.';
+    }
+    final detail = _responseDetail(body);
+    return AiException(
+      detail.isEmpty ? hint : '$hint Provider says: $detail',
+      statusCode: statusCode,
+    );
+  }
+
+  AiException _networkError(Object error, Duration timeout) {
+    if (error is TimeoutException) {
+      return AiException(
+        'Connection timed out after ${timeout.inSeconds}s. Check the internet connection, Base URL, and provider status.',
+      );
+    }
+    final raw = error.toString().toLowerCase();
+    if (_isLocalBackend &&
+        (raw.contains('connection refused') ||
+            raw.contains('failed host lookup') ||
+            raw.contains('network is unreachable'))) {
+      return const AiException(
+        'Could not reach the local AI server. On Android, 127.0.0.1 and localhost mean the phone itself, not your PC. Start Ollama on your PC with OLLAMA_HOST=0.0.0.0, then use its Wi-Fi IP (for example http://192.168.1.10:11434/v1).',
+      );
+    }
+    if (raw.contains('failed host lookup') ||
+        raw.contains('name or service not known') ||
+        raw.contains('nodename nor servname')) {
+      return const AiException(
+        'The server address could not be resolved. Check the Base URL spelling and your internet/DNS connection.',
+      );
+    }
+    if (raw.contains('certificate') || raw.contains('handshake')) {
+      return const AiException(
+        'The secure TLS connection failed. Check the Base URL certificate and the phone date/time settings.',
+      );
+    }
+    if (raw.contains('connection refused')) {
+      return const AiException(
+        'The server refused the connection. Check the Base URL, port, and whether the AI service is running.',
+      );
+    }
+    return const AiException(
+      'Could not connect to the AI provider. Check your internet connection and Base URL, then try again.',
+    );
+  }
+
+  /// Performs a small real completion to validate URL, credentials and model.
+  Future<AiConnectionResult> testConnection() async {
+    final settings = SettingsService.instance;
+    final stopwatch = Stopwatch()..start();
+    try {
+      await _postChatCompletion(
+        <Map<String, dynamic>>[
+          <String, String>{'role': 'user', 'content': 'Reply with OK.'},
+        ],
+        settings,
+        maxTokens: 128,
+        temperature: 0,
+        timeout: const Duration(seconds: 30),
+        allowEmptyContent: true,
+      );
+      stopwatch.stop();
+      final elapsed = stopwatch.elapsed;
+      final latency = elapsed.inMilliseconds < 1000
+          ? '${elapsed.inMilliseconds} ms'
+          : '${(elapsed.inMilliseconds / 1000).toStringAsFixed(1)} s';
+      return AiConnectionResult(
+        success: true,
+        message: 'Connected to ${settings.model} in $latency.',
+        elapsed: elapsed,
+      );
+    } on AiException catch (e) {
+      stopwatch.stop();
+      return AiConnectionResult(
+        success: false,
+        message: e.toString(),
+        statusCode: e.statusCode,
+        elapsed: stopwatch.elapsed,
+      );
+    } catch (_) {
+      stopwatch.stop();
+      return AiConnectionResult(
+        success: false,
+        message: 'Unexpected connection error. Check the settings and try again.',
+        elapsed: stopwatch.elapsed,
+      );
+    }
   }
 
   /// The system prompt that turns a chat model into a UI automation agent.
@@ -807,41 +1070,11 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
       },
     ];
 
-    if (settings.apiKey.isEmpty && !_isLocalBackend) {
-      throw const AiException(
-        'No API key configured. Open Settings and add one first.',
-      );
-    }
-    if (settings.baseUrl.isEmpty) {
-      throw const AiException('No base URL configured.');
-    }
-    if (settings.model.isEmpty) {
-      throw const AiException('No model name configured.');
-    }
-
-    final base = settings.baseUrl.replaceAll(RegExp(r'/+$'), '');
-    final uri = Uri.parse('$base/chat/completions');
-
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${settings.apiKey}',
-      'User-Agent':
-          'Mozilla/5.0 (Linux; Android 14) '
-          'AppleWebKit/537.36 (KHTML, like Gecko) '
-          'Chrome/120.0.0.0 Mobile Safari/537.36',
-      if (settings.provider == 'openrouter') ...{
-        'HTTP-Referer': 'https://privateagent.local',
-        'X-Title': 'JARVIS',
-      },
-    };
-
-    final body = jsonEncode({
-      'model': settings.model,
-      'messages': messages,
-      'max_tokens': settings.maxTokens,
-      'temperature': settings.temperature,
-      'stream': true,
-    });
+    final uri = _validateSettings(settings);
+    final headers = _buildHeaders(settings, stream: true);
+    final body = jsonEncode(
+      _completionBody(messages, settings, stream: true),
+    );
 
     final request = http.Request('POST', uri)
       ..headers.addAll(headers)
@@ -859,42 +1092,72 @@ You cannot directly tap the screen in this mode. If the user asks you to perform
 
     if (res.statusCode != 200) {
       final resBody = await res.stream.bytesToString();
-      final snippet = resBody.length > 300
-          ? '${resBody.substring(0, 300)}…'
-          : resBody;
-      throw AiException(snippet, statusCode: res.statusCode);
+      throw _responseError(res.statusCode, resBody);
     }
 
     String buffer = '';
-    await for (final chunk in res.stream.transform(utf8.decoder)) {
-      buffer += chunk;
-      while (buffer.contains('\n')) {
-        final newlineIndex = buffer.indexOf('\n');
-        final line = buffer.substring(0, newlineIndex).trim();
-        buffer = buffer.substring(newlineIndex + 1);
+    var emittedContent = false;
+    try {
+      await for (final chunk in res.stream
+          .timeout(const Duration(seconds: 60))
+          .transform(utf8.decoder)) {
+        buffer += chunk;
+        while (buffer.contains('\n')) {
+          final newlineIndex = buffer.indexOf('\n');
+          final line = buffer.substring(0, newlineIndex).trim();
+          buffer = buffer.substring(newlineIndex + 1);
 
-        if (line.isEmpty || line.startsWith(':')) continue;
-        if (line.startsWith('data:')) {
-          final data = line.substring(5).trim();
-          if (data == '[DONE]') return;
-          try {
-            final json = jsonDecode(data);
-            final choices = json['choices'] as List?;
-            if (choices != null && choices.isNotEmpty) {
-              final firstChoice = choices[0];
-              final delta = firstChoice['delta'];
-              if (delta != null && delta['content'] != null) {
-                final content = delta['content'].toString();
-                if (content.isNotEmpty) {
-                  yield content;
+          if (line.isEmpty || line.startsWith(':')) continue;
+          if (line.startsWith('data:')) {
+            final data = line.substring(5).trim();
+            if (data == '[DONE]') return;
+            try {
+              final json = jsonDecode(data);
+              if (json is Map && json['error'] != null) {
+                final error = json['error'];
+                final statusCode = error is Map
+                    ? int.tryParse('${error['code']}') ?? 500
+                    : 500;
+                throw _responseError(statusCode, jsonEncode(error));
+              }
+              final choices = json['choices'] as List?;
+              if (choices != null && choices.isNotEmpty) {
+                final firstChoice = choices[0];
+                final delta = firstChoice['delta'];
+                if (delta != null && delta['content'] != null) {
+                  final content = delta['content'].toString();
+                  if (content.isNotEmpty) {
+                    emittedContent = true;
+                    yield content;
+                  }
                 }
               }
+            } on AiException {
+              rethrow;
+            } catch (_) {
+              // Ignore partial SSE fragments.
             }
-          } catch (_) {
-            // Ignore partial SSE fragments
           }
         }
       }
+    } on AiException {
+      rethrow;
+    } on TimeoutException {
+      if (emittedContent) {
+        throw const AiException(
+          'The AI response stream timed out. Please try the request again.',
+        );
+      }
+      final fallback = await chat(message: message, history: history);
+      yield fallback;
+    } catch (_) {
+      if (emittedContent) {
+        throw const AiException(
+          'The AI response stream was interrupted. Please try again.',
+        );
+      }
+      final fallback = await chat(message: message, history: history);
+      yield fallback;
     }
   }
 
@@ -1259,68 +1522,47 @@ The user is viewing an article or screen on their device and requested an execut
   /// Shared request/response plumbing for [complete], [chat], and [completeMultimodal].
   Future<String> _postChatCompletion(
     List<Map<String, dynamic>> messages,
-    SettingsService settings,
-  ) async {
-    if (settings.apiKey.isEmpty && !_isLocalBackend) {
-      throw const AiException(
-        'No API key configured. Open Settings and add one first.',
-      );
-    }
-    if (settings.baseUrl.isEmpty) {
-      throw const AiException('No base URL configured.');
-    }
-    if (settings.model.isEmpty) {
-      throw const AiException('No model name configured.');
-    }
-
-    final base = settings.baseUrl.replaceAll(RegExp(r'/+$'), '');
-    final uri = Uri.parse('$base/chat/completions');
-
-    final headers = <String, String>{
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ${settings.apiKey}',
-      // Some gateways sit behind Cloudflare-style bot protection that
-      // rejects non-browser clients by signature (HTTP 403, "error code:
-      // 1010"). Presenting a browser-like User-Agent keeps those
-      // endpoints reachable and is ignored by regular providers.
-      'User-Agent':
-          'Mozilla/5.0 (Linux; Android 14) '
-          'AppleWebKit/537.36 (KHTML, like Gecko) '
-          'Chrome/120.0.0.0 Mobile Safari/537.36',
-      if (settings.provider == 'openrouter') ...{
-        'HTTP-Referer': 'https://privateagent.local',
-        'X-Title': 'PrivateAgent',
-      },
-    };
-
-    final body = jsonEncode({
-      'model': settings.model,
-      'messages': messages,
-      'max_tokens': settings.maxTokens,
-      'temperature': settings.temperature,
-      'stream': false,
-    });
+    SettingsService settings, {
+    int? maxTokens,
+    double? temperature,
+    Duration timeout = const Duration(seconds: 60),
+    bool allowEmptyContent = false,
+  }) async {
+    final uri = _validateSettings(settings);
+    final headers = _buildHeaders(settings, stream: false);
+    final body = jsonEncode(
+      _completionBody(
+        messages,
+        settings,
+        stream: false,
+        maxTokens: maxTokens,
+        temperature: temperature,
+      ),
+    );
 
     http.Response res;
     try {
-      res = await _client
-          .post(uri, headers: headers, body: body)
-          .timeout(const Duration(seconds: 60));
-    } on TimeoutException {
-      throw const AiException('Request timed out after 60s.');
+      res = await _client.post(uri, headers: headers, body: body).timeout(timeout);
     } catch (e) {
-      throw AiException('Network error: $e');
+      throw _networkError(e, timeout);
     }
 
     if (res.statusCode != 200) {
-      final snippet = res.body.length > 300
-          ? '${res.body.substring(0, 300)}…'
-          : res.body;
-      throw AiException(snippet, statusCode: res.statusCode);
+      throw _responseError(
+        res.statusCode,
+        utf8.decode(res.bodyBytes, allowMalformed: true),
+      );
     }
 
     try {
       final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      if (decoded is Map && decoded['error'] != null) {
+        final error = decoded['error'];
+        final statusCode = error is Map
+            ? int.tryParse('${error['code']}') ?? 500
+            : 500;
+        throw _responseError(statusCode, jsonEncode(error));
+      }
       final choices = decoded['choices'];
       if (choices is! List || choices.isEmpty) {
         throw const AiException('Response contained no choices.');
@@ -1335,6 +1577,9 @@ The user is viewing an article or screen on their device and requested an execut
             .join();
         if (joined.trim().isNotEmpty) return joined;
       }
+      // A 200 response proves connectivity even when a reasoning model spends
+      // the small diagnostic budget before producing visible text.
+      if (allowEmptyContent) return '';
       // Reasoning models can spend the entire completion budget on hidden
       // reasoning and return empty content with finish_reason == 'length'.
       if (choice?['finish_reason'] == 'length') {

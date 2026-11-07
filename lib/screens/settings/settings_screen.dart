@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
+import '../../services/ai_service.dart';
 import '../../services/personality_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/telegram_service.dart';
@@ -29,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool _obscureKey = true;
   bool _obscureToken = true;
+  bool _isTestingConnection = false;
+  AiConnectionResult? _connectionResult;
 
   String _lastSyncedProvider = '';
 
@@ -97,6 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _lastSyncedProvider = _settings.provider;
       _baseUrlController.text = _settings.baseUrl;
       _modelController.text = _settings.model;
+      _connectionResult = null;
     }
     setState(() {});
   }
@@ -110,7 +114,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _onAiFieldChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() => _connectionResult = null);
+    }
   }
 
   void _onTelegramFieldChanged() {
@@ -175,6 +181,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
           duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      );
+  }
+
+  Future<void> _testAiConnection() async {
+    if (_isTestingConnection) return;
+    setState(() {
+      _isTestingConnection = true;
+      _connectionResult = null;
+    });
+
+    AiConnectionResult result;
+    try {
+      // Always test exactly what is visible in the fields, including unsaved edits.
+      await _settings.setBaseUrl(_baseUrlController.text);
+      await _settings.setApiKey(_apiKeyController.text);
+      await _settings.setModel(_modelController.text);
+      result = await AiService.instance.testConnection();
+    } catch (_) {
+      result = const AiConnectionResult(
+        success: false,
+        message: 'Could not save or test the AI configuration. Please try again.',
+        elapsed: Duration.zero,
+      );
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isTestingConnection = false;
+      _connectionResult = result;
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: result.success
+              ? const Color(0xFF087F5B)
+              : const Color(0xFFA61B1B),
+          duration: Duration(seconds: result.success ? 3 : 6),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
@@ -362,6 +410,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             prefixIcon: const Icon(Icons.link_rounded, size: 20),
             keyboardType: TextInputType.url,
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 7, 4, 0),
+            child: Text(
+              _settings.provider == 'ollama'
+                  ? '127.0.0.1 means this phone. For Ollama on a PC, use its Wi-Fi IP instead, for example http://192.168.1.10:11434/v1.'
+                  : 'Use an OpenAI-compatible base URL (usually ending in /v1). A full /chat/completions URL also works.',
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.35,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           const SizedBox(height: 12),
           GlassTextField(
             controller: _apiKeyController,
@@ -408,6 +469,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: OutlinedButton.icon(
+              onPressed: _isTestingConnection ? null : _testAiConnection,
+              icon: _isTestingConnection
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.wifi_tethering_rounded, size: 19),
+              label: Text(
+                _isTestingConnection
+                    ? 'Testing real API request…'
+                    : (_aiDirty ? 'Save & test connection' : 'Test connection'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ),
+          if (_connectionResult != null)
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (_connectionResult!.success
+                        ? const Color(0xFF12B886)
+                        : const Color(0xFFFA5252))
+                    .withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: (_connectionResult!.success
+                          ? const Color(0xFF12B886)
+                          : const Color(0xFFFA5252))
+                      .withValues(alpha: 0.45),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    _connectionResult!.success
+                        ? Icons.check_circle_outline
+                        : Icons.error_outline,
+                    size: 20,
+                    color: _connectionResult!.success
+                        ? const Color(0xFF12B886)
+                        : const Color(0xFFFA5252),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _connectionResult!.message,
+                      style: const TextStyle(fontSize: 12, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (_aiDirty)
             const Padding(
               padding: EdgeInsets.only(top: 8),

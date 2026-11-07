@@ -50,15 +50,15 @@ jobs:
       - name: Prepare APK artifact
         run: |
           mkdir -p artifact
-          cp build/app/outputs/flutter-apk/app-release.apk artifact/Jarvis-v1.1.0.apk
-          sha256sum artifact/Jarvis-v1.1.0.apk > artifact/Jarvis-v1.1.0.apk.sha256
+          cp build/app/outputs/flutter-apk/app-release.apk artifact/Jarvis-v1.1.1.apk
+          sha256sum artifact/Jarvis-v1.1.1.apk > artifact/Jarvis-v1.1.1.apk.sha256
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Jarvis-v1.1.0-apk
+          name: Jarvis-v1.1.1-apk
           path: |
-            artifact/Jarvis-v1.1.0.apk
-            artifact/Jarvis-v1.1.0.apk.sha256
+            artifact/Jarvis-v1.1.1.apk
+            artifact/Jarvis-v1.1.1.apk.sha256
           if-no-files-found: error
           retention-days: 30

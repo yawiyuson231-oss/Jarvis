@@ -36,6 +36,29 @@ class SettingsService extends ChangeNotifier {
     if (_prefs?.getBool('ai_use_system_prompt') != true) {
       await _prefs?.setBool('ai_use_system_prompt', true);
     }
+    await _migrateAiPresets();
+  }
+
+  static const _aiPresetRevision = 2;
+
+  Future<void> _migrateAiPresets() async {
+    final savedRevision = _prefs?.getInt('ai_preset_revision') ?? 0;
+    if (savedRevision >= _aiPresetRevision) return;
+
+    // Gemini 2.0/1.5 defaults from older builds are no longer reliable.
+    // Migrate only those known preset values; never overwrite a custom model.
+    if (_prefs?.getString('ai_provider') == 'gemini') {
+      final savedModel = _prefs?.getString('ai_model');
+      const retiredDefaults = {
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+      };
+      if (savedModel == null || retiredDefaults.contains(savedModel)) {
+        await _prefs?.setString('ai_model', providers['gemini']!.model);
+      }
+    }
+    await _prefs?.setInt('ai_preset_revision', _aiPresetRevision);
   }
 
   // ------------------------------------------------------------------
@@ -58,7 +81,7 @@ class SettingsService extends ChangeNotifier {
     'gemini': (
       label: 'Google Gemini',
       baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.8-flash',
     ),
     'openrouter': (
       label: 'OpenRouter',

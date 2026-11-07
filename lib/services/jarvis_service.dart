@@ -814,6 +814,40 @@ class JarvisService extends ChangeNotifier {
 
   /// Processes a voice command through JARVIS intelligence.
   Future<void> processCommand(String command) async {
+    try {
+      await _processCommand(command);
+    } on AiException catch (e) {
+      debugPrint('[JarvisService] AI connection failed: $e');
+      _lastJarvisSpeech = 'AI connection failed: $e';
+      _statusMessage = 'AI CONNECTION FAILED // SETTINGS > TEST CONNECTION';
+      _phase = JarvisPhase.idle;
+      notifyListeners();
+      try {
+        await _voice.speak(
+          'I could not connect to the AI service, sir. Please open Settings and tap Test Connection for the exact fix.',
+        );
+      } catch (_) {}
+      _phase = JarvisPhase.idle;
+      _statusMessage = 'AI CONNECTION FAILED // SETTINGS > TEST CONNECTION';
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[JarvisService] Command failed: $e');
+      _lastJarvisSpeech = 'The command could not be completed. Please try again, sir.';
+      _statusMessage = 'COMMAND FAILED // PLEASE RETRY';
+      _phase = JarvisPhase.idle;
+      notifyListeners();
+      try {
+        await _voice.speak(
+          'The command could not be completed, sir. Please try again.',
+        );
+      } catch (_) {}
+      _phase = JarvisPhase.idle;
+      _statusMessage = 'COMMAND FAILED // PLEASE RETRY';
+      notifyListeners();
+    }
+  }
+
+  Future<void> _processCommand(String command) async {
     _wakeUp();
 
     final trimmed = command.trim();
@@ -2214,6 +2248,10 @@ Mastering the boundless road.
         speech: trimmed,
         history: _dialogHistory,
       );
+    } on AiException {
+      // Surface connectivity/auth failures instead of disguising them as an
+      // offline intent and immediately issuing a second failing AI request.
+      rethrow;
     } catch (_) {
       intent = JarvisIntent.fallback(trimmed);
     }

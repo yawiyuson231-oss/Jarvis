@@ -350,7 +350,7 @@ J.A.R.V.I.S. is provider-agnostic and connects to any OpenAI-compatible API endp
 |---|---|---|---|
 | **Ollama (Local-First)** | `http://127.0.0.1:11434/v1` | `llama3.2`, `qwen2.5`, `llava` | Text & Vision |
 | **DeepSeek** | `https://api.deepseek.com/v1` | `deepseek-chat`, `deepseek-reasoner` | Text / Reasoning |
-| **Google Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.0-flash`, `gemini-1.5-pro` | Multimodal Vision |
+| **Google Gemini** | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-3.8-flash` | Multimodal Vision |
 | **OpenAI** | `https://api.openai.com/v1` | `gpt-4o-mini`, `gpt-4o` | Multimodal Vision |
 | **OpenRouter** | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet`, `meta/llama-3.3-70b` | Text & Vision |
 | **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` | Text & Reasoning |
@@ -517,15 +517,22 @@ Jarvis/
 
 ## ❓ Troubleshooting & Edge Cases
 
-### 1. Hands-Free Speech Recognition on Motorola / Android 12+
+### 1. AI API Won't Connect
+- Open **Settings > AI Intelligence Engine** and tap **Test connection**. The app saves the visible fields and makes a small real completion request, then reports a specific authentication, model, quota, DNS, timeout, or provider error.
+- Use an OpenAI-compatible base URL such as `https://api.openai.com/v1`. Pasting the full `/chat/completions` endpoint is also supported; the app will not append the path twice.
+- API keys can be pasted with or without the `Bearer ` prefix. Never share your key publicly.
+- **HTTP 401/403**: verify the key and its permissions. **HTTP 404**: verify the base URL and model. **HTTP 402/429**: check provider credits, billing, or rate limits.
+- For **Ollama on a PC**, `127.0.0.1` on Android refers to the phone itself. Start Ollama with `OLLAMA_HOST=0.0.0.0 ollama serve`, connect both devices to the same network, and use a base URL such as `http://192.168.1.10:11434/v1`. A firewall must allow TCP port `11434`.
+
+### 2. Hands-Free Speech Recognition on Motorola / Android 12+
 - **Symptom**: `InterruptedIOException` in `PipedOutputStream`.
 - **Cause**: Android 12+ on some devices delegates `createOnDeviceSpeechRecognizer` to buggy OEM speech recognizers.
 - **Solution**: J.A.R.V.I.S. explicitly routes through Google's robust Speech Services via `SpeechRecognizer.createSpeechRecognizer(this)`. Ensure the Google app has microphone permissions.
 
-### 2. Floating Overlay Doesn't Render
+### 3. Floating Overlay Doesn't Render
 - **Solution**: Navigate to **Settings > App Permissions > Floating Overlay** and ensure "Appear on top" permission is toggled ON.
 
-### 3. Screen Automation Clicks Miss Target
+### 4. Screen Automation Clicks Miss Target
 - **Solution**: Ensure your screen orientation matches standard portrait mode. If an app utilizes secure flags (`FLAG_SECURE`, e.g., banking apps), Android prevents accessibility services from inspecting node coordinates.
 
 ---

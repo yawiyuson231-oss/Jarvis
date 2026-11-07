@@ -361,9 +361,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              'Ollama runs fully on your machine — no API key needed. '
-              'Start it with OLLAMA_HOST=0.0.0.0 ollama serve, then use '
-              'adb reverse tcp:11434 tcp:11434 so the phone can reach it.',
+              'Ollama on your PC needs no API key. Start it with '
+              'OLLAMA_HOST=0.0.0.0 ollama serve. After setup, open Settings '
+              'and use your PC\'s Wi-Fi IP, for example '
+              'http://192.168.1.10:11434/v1. On Android, 127.0.0.1 means '
+              'the phone itself (unless you configure adb reverse).',
               style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant, height: 1.5),
             ),

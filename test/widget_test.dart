@@ -141,6 +141,8 @@ void main() {
 
     // Change an unrelated setting — this used to reset the Model field
     // back to the provider default.
+    await tester.ensureVisible(find.text('Send system prompt'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Send system prompt'));
     await tester.pumpAndSettle();
 
@@ -150,9 +152,31 @@ void main() {
     expect(modelField.controller!.text, 'qwen2.5:7b');
 
     // Saving persists the custom model, not the default.
+    await tester.ensureVisible(find.text('Save changes'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save changes'));
     await tester.pumpAndSettle();
     expect(settings.model, 'qwen2.5:7b');
+  });
+
+  testWidgets('connection test reports a missing API key without a network request', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final settings = SettingsService.instance;
+    await settings.init();
+    await settings.setProvider('deepseek');
+    await settings.setApiKey('');
+
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Test connection'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Test connection'));
+    await tester.pumpAndSettle();
+
+    expect(settings.apiKey, isEmpty);
+    expect(find.textContaining('No API key configured'), findsWidgets);
   });
 
   group('JARVIS & Hermes Workflow tests', () {
