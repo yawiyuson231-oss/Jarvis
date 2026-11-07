@@ -694,7 +694,7 @@ class AiService {
       path = '$path/chat/completions';
     }
     if (!path.startsWith('/')) path = '/$path';
-    return uri.replace(path: path, fragment: '');
+    return uri.replace(path: path).removeFragment();
   }
 
   Uri _validateSettings(SettingsService settings) {

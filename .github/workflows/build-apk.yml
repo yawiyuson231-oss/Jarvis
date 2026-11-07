@@ -56,7 +56,10 @@ jobs:
           from pathlib import Path
           from urllib.parse import quote
           details = Path('test-failures.txt').read_text()[-20000:]
-          print('::error title=Flutter test failures::' + quote(details))
+          for index in range(0, len(details), 1000):
+              part = index // 1000 + 1
+              chunk = details[index:index + 1000]
+              print(f'::error title=Flutter test failures {part}::' + quote(chunk))
           PY
 
       - name: Build release APK
