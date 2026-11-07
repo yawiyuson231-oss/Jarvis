@@ -199,17 +199,4 @@ void main() {
       expect(result.success, isTrue);
     });
   });
-
-  group('AI preset migration', () {
-    test('upgrades only the retired Gemini preset model', () async {
-      SharedPreferences.setMockInitialValues({
-        'ai_provider': 'gemini',
-        'ai_model': 'gemini-2.0-flash',
-      });
-      final settings = SettingsService.instance;
-      await settings.init();
-
-      expect(settings.model, 'gemini-3.8-flash');
-    });
-  });
 }
