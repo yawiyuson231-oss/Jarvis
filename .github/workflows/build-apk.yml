@@ -42,7 +42,22 @@ jobs:
         run: flutter pub get
 
       - name: Run tests
-        run: flutter test
+        shell: bash
+        run: |
+          set -o pipefail
+          flutter test --reporter expanded 2>&1 | tee test-output.log
+
+      - name: Report test failures
+        if: failure()
+        shell: bash
+        run: |
+          grep -n -E -A 20 -B 8 '(\[E\]|Expected:|Actual:|Test failed|EXCEPTION|Failed assertion|error:)' test-output.log | tail -300 > test-failures.txt || true
+          python3 - <<'PY'
+          from pathlib import Path
+          from urllib.parse import quote
+          details = Path('test-failures.txt').read_text()[-20000:]
+          print('::error title=Flutter test failures::' + quote(details))
+          PY
 
       - name: Build release APK
         run: flutter build apk --release
