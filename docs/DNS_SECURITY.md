@@ -128,6 +128,26 @@ Not covered:
 
 ## Verification
 
+### Automated status
+
+Last run on GitHub Actions (`.github/workflows/flutter-checks.yml`), Ubuntu runner,
+Flutter **3.44.9** / Dart **3.12.2** — the SDK line declared in `pubspec.yaml`:
+
+| Command | Result |
+| --- | --- |
+| `flutter analyze` | `No issues found!` |
+| `flutter test test/dns_message_test.dart test/dns_security_test.dart test/dns_resolver_test.dart test/secure_dns_service_test.dart` | `All tests passed!` (32 tests) |
+
+The workflow runs on pushes to `arena/**` and on manual dispatch. It uploads the
+raw logs as build artifacts and, when a check fails, also posts them as commit
+comments so the failure is readable without downloading artifacts.
+
+These are unit/widget tests with an injected DoH transport and a loopback HTTP
+server. They do **not** prove real-provider TLS behavior or Android device
+behavior; the checklist below is still required.
+
+### Running locally
+
 Run with the project's Flutter/Dart toolchain:
 
 ```sh

@@ -69,7 +69,9 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish logs as commit comments
-        if: always()
+        # Only on failure: keeps successful runs quiet while making failures
+        # readable straight from the commit.
+        if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
