@@ -215,8 +215,8 @@ Future<Uint8List> postDnsOverHttps(
   final client = HttpOverrides.runWithHttpOverrides(
     () => HttpClient(), _NativeBootstrapOverrides(),
   );
+  client.findProxy = (_) => 'DIRECT';
   client
-    ..findProxy = (_) => 'DIRECT'
     ..connectionTimeout = timeout
     ..idleTimeout = const Duration(seconds: 1)
     ..userAgent = null
@@ -253,7 +253,7 @@ Future<Uint8List> postDnsOverHttps(
           rethrow;
         }
       }();
-      return Future.value(ConnectionTask<Socket>.fromSocket(future, () {
+      return Future.value(ConnectionTask.fromSocket<Socket>(future, () {
         cancelled = true;
         cancel?.call();
       }));

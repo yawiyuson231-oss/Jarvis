@@ -314,7 +314,7 @@ class _DnsSecurityScreenState extends State<DnsSecurityScreen> {
       borderColor: color.withValues(alpha: 0.45),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.shield_lock_outlined, color: color, size: 30),
+          Icon(Icons.shield_outlined, color: color, size: 30),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('APPLICATION DNS SHIELD', style: TextStyle(fontSize: 11, letterSpacing: 1.2, fontWeight: FontWeight.w800)),

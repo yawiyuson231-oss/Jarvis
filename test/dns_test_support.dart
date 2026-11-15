@@ -24,7 +24,7 @@ Uint8List dnsResponse(
   final b = BytesBuilder()..add(header);
   for (final address in addresses) {
     b.add([0xc0, 0x0c, 0, type, 0, 1]);
-    final tail = Uint8List(8);
+    final tail = Uint8List(6); // TTL(4) + RDLENGTH(2) after name/type/class
     ByteData.sublistView(tail)
       ..setUint32(0, ttl)
       ..setUint16(4, address.length);

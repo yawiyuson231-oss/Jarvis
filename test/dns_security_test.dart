@@ -42,7 +42,7 @@ void main() {
       expect(() => DnsProviderProfile.parseBootstrapAddresses(value), throwsA(isA<DnsConfigurationException>()));
     }
     expect(() => DnsProviderProfile.parseBootstrapAddresses(List.filled(9, '1.1.1.2').join(',')),
-        throwsA(isA<DnsConfigurationException>>()));
+        throwsA(isA<DnsConfigurationException>()));
   });
 
   test('Advanced blocks remote HTTP and WS but permits explicit local exceptions', () {

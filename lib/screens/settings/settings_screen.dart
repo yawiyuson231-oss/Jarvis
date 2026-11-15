@@ -625,7 +625,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Padding(
             padding: const EdgeInsets.all(18),
             child: Row(children: [
-              const Icon(Icons.shield_lock_outlined, color: Color(0xFF00E5FF), size: 30),
+              const Icon(Icons.shield_outlined, color: Color(0xFF00E5FF), size: 30),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Advanced DNS security', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700)),

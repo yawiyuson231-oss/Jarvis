@@ -4,7 +4,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_agent/models/dns_security.dart';
-import 'package:private_agent/services/dns_message.dart';
 import 'package:private_agent/services/dns_resolver.dart';
 
 import 'dns_test_support.dart';

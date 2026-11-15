@@ -97,7 +97,7 @@ void main() {
 
   test('encrypted modes reject certificate bypasses and proxy overrides', () {
     final client = DnsHttpClient(dns);
-    expect(() => client.badCertificateCallback = (_, __, ___) => true,
+    expect(() => client.badCertificateCallback = (_, _, _) => true,
         throwsA(isA<DnsConfigurationException>()));
     expect(() => client.findProxy = (_) => 'PROXY attacker.example:8080',
         throwsA(isA<DnsConfigurationException>()));

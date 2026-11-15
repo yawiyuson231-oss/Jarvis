@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 import '../models/dns_security.dart';
 import 'dns_resolver.dart';
@@ -130,7 +131,7 @@ class SecureDnsService extends ChangeNotifier {
     return _resolver ??= DnsResolver(profile: settings.profile, transport: _transport);
   }
 
-  http.Client httpClient() => http.IOClient(DnsHttpClient(this));
+  http.Client httpClient() => IOClient(DnsHttpClient(this));
 
   /// The original URI is retained for HTTP Host and TLS certificate validation.
   Future<Socket> _openSocket(
@@ -173,7 +174,7 @@ class SecureDnsService extends ChangeNotifier {
           throw const SocketException('Target connection timed out.');
         });
         if (uri.isScheme('https')) {
-          setCancel(socket!.destroy);
+          setCancel(socket.destroy);
           final secure = await SecureSocket.secure(
             socket,
             host: uri.host,
@@ -186,7 +187,7 @@ class SecureDnsService extends ChangeNotifier {
         if (cancelled() || generation != _generation) {
           throw const SocketException('Connection cancelled after a DNS policy change.');
         }
-        setCancel(socket!.destroy);
+        setCancel(socket.destroy);
         _connectionsOpened++;
         _lastError = null;
         notifyListeners();
@@ -311,6 +312,8 @@ class DnsHttpClient implements HttpClient {
   int _innerGeneration = -1;
   bool _closed = false;
 
+  // A private field cannot be an initializing formal for a named parameter.
+  // ignore: prefer_initializing_formals
   DnsHttpClient(this._service, {SecurityContext? context}) : _context = context {
     _service._clients.add(this);
   }
@@ -334,29 +337,29 @@ class DnsHttpClient implements HttpClient {
       _innerGeneration = generation;
     }
     final settings = _service.configuration;
-    _inner!
-      ..connectionTimeout = const Duration(seconds: 20)
-      ..idleTimeout = const Duration(seconds: 15)
-      ..badCertificateCallback = null
-      ..findProxy = settings.isEncrypted ? (_) => 'DIRECT' : null
-      ..connectionFactory = settings.isEncrypted
-          ? (uri, proxyHost, proxyPort) {
-              if (proxyHost != null) {
-                throw const DnsConfigurationException('Proxies are not supported in encrypted DNS modes.');
-              }
-              var cancelled = false;
-              void Function()? cancel;
-              final socket = _service._openSocket(
-                uri, settings, _context, generation,
-                () => cancelled, (callback) => cancel = callback,
-              );
-              return Future.value(ConnectionTask<Socket>.fromSocket(socket, () {
-                cancelled = true;
-                cancel?.call();
-              }));
+    final client = _inner!;
+    client.connectionTimeout = const Duration(seconds: 20);
+    client.idleTimeout = const Duration(seconds: 15);
+    client.badCertificateCallback = null;
+    client.findProxy = settings.isEncrypted ? (_) => 'DIRECT' : null;
+    client.connectionFactory = settings.isEncrypted
+        ? (uri, proxyHost, proxyPort) {
+            if (proxyHost != null) {
+              throw const DnsConfigurationException('Proxies are not supported in encrypted DNS modes.');
             }
-          : null;
-    return _inner!;
+            var cancelled = false;
+            void Function()? cancel;
+            final socket = _service._openSocket(
+              uri, settings, _context, generation,
+              () => cancelled, (callback) => cancel = callback,
+            );
+            return Future.value(ConnectionTask.fromSocket<Socket>(socket, () {
+              cancelled = true;
+              cancel?.call();
+            }));
+          }
+        : null;
+    return client;
   }
 
   @override
