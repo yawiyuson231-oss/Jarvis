@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'secure_dns_service.dart';
+
 /// Aircraft telemetry blip detected in overhead airspace.
 class OverheadAircraft {
   final String callsign;
@@ -58,6 +60,8 @@ class AirspaceRadarService extends ChangeNotifier {
   AirspaceRadarService._();
   static final AirspaceRadarService instance = AirspaceRadarService._();
 
+  final http.Client _dnsClient = SecureDnsService.instance.httpClient();
+
   List<OverheadAircraft> _nearbyFlights = [];
   SatellitePass? _issPass;
   bool _isScanning = false;
@@ -87,7 +91,7 @@ class AirspaceRadarService extends ChangeNotifier {
         'https://opensky-network.org/api/states/all?lamin=$lamin&lamax=$lamax&lomin=$lomin&lomax=$lomax',
       );
 
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
+      final response = await _dnsClient.get(url).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final states = data['states'] as List?;
@@ -139,32 +143,28 @@ class AirspaceRadarService extends ChangeNotifier {
 
   Future<void> _queryIssPosition(double userLat, double userLon) async {
     try {
-      final res = await http
-          .get(Uri.parse('http://api.open-notify.org/iss-now.json'))
-          .timeout(const Duration(seconds: 4));
+      // HTTPS keeps this integration compatible with Advanced DNS mode.
+      // https://wheretheiss.at/w/developer
+      final res = await _dnsClient
+          .get(Uri.parse('https://api.wheretheiss.at/v1/satellites/25544'))
+          .timeout(const Duration(seconds: 15));
       if (res.statusCode == 200) {
         final d = jsonDecode(res.body);
-        final pos = d['iss_position'];
-        final issLat = double.parse(pos['latitude'].toString());
-        final issLon = double.parse(pos['longitude'].toString());
+        final issLat = double.parse(d['latitude'].toString());
+        final issLon = double.parse(d['longitude'].toString());
         final dist = _approxDistanceMiles(userLat, userLon, issLat, issLon) * 1.60934;
 
         _issPass = SatellitePass(
           name: 'International Space Station (ISS)',
           latitude: issLat,
           longitude: issLon,
-          altitudeKm: 420.0,
+          altitudeKm: double.tryParse(d['altitude'].toString()) ?? 420.0,
           distanceFromUserKm: dist,
         );
       }
     } catch (_) {
-      _issPass = SatellitePass(
-        name: 'International Space Station (ISS)',
-        latitude: userLat + 12.4,
-        longitude: userLon - 18.2,
-        altitudeKm: 418.0,
-        distanceFromUserKm: 2840.0,
-      );
+      // Never label fabricated or stale coordinates as a live satellite pass.
+      _issPass = null;
     }
   }
 

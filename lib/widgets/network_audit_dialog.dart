@@ -80,7 +80,7 @@ class _NetworkAuditDialogState extends State<NetworkAuditDialog> {
                               ),
                             ),
                             Text(
-                              'LOCAL SUBNET & PORT SWEEPER',
+                              'LOCAL SUBNET & JARVIS DNS STATUS',
                               style: TextStyle(
                                 color: Colors.white54,
                                 fontFamily: 'monospace',
@@ -115,7 +115,7 @@ class _NetworkAuditDialogState extends State<NetworkAuditDialog> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              report != null ? '${report.securityScore} / 100' : 'SCANNING...',
+                              report == null ? 'SCANNING...' : report.auditError != null ? 'UNAVAILABLE' : '${report.securityScore} / 100',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontFamily: 'monospace',
@@ -124,7 +124,7 @@ class _NetworkAuditDialogState extends State<NetworkAuditDialog> {
                               ),
                             ),
                             const Text(
-                              'CYBER DEFENSE POSTURE',
+                              'LIMITED PORT-SCAN HEURISTIC',
                               style: TextStyle(
                                 color: cyan,
                                 fontFamily: 'monospace',
@@ -201,6 +201,26 @@ class _NetworkAuditDialogState extends State<NetworkAuditDialog> {
                         }).toList(),
                       ),
                     ),
+
+                  if (report != null) ...[
+                    if (report.auditError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(report.auditError!,
+                            style: const TextStyle(color: Colors.orangeAccent, fontSize: 11)),
+                      ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: cyan.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: cyan.withValues(alpha: 0.2)),
+                      ),
+                      child: Text('DNS: ${report.dnsSummary}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.4)),
+                    ),
+                  ],
 
                   const SizedBox(height: 10),
 

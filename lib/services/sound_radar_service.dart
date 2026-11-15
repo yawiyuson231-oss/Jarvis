@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+
+import 'secure_dns_service.dart';
 import 'voice_service.dart';
 
 /// Giving J.A.R.V.I.S. ears for the physical world:
@@ -11,7 +13,7 @@ class SoundRadarService {
   SoundRadarService._();
   static final SoundRadarService instance = SoundRadarService._();
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   /// Identifies music currently playing in the room or queries song lyrics/tracks.
   Future<String> identifyMusic([String? sampleOrHint]) async {

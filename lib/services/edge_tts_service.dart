@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'secure_dns_service.dart';
 import 'settings_service.dart';
 
 /// Ultra-realistic Neural Text-To-Speech powered by Microsoft Studio Neural voices.
@@ -525,7 +526,7 @@ class EdgeTtsService {
     final url =
         'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?TrustedClientToken=$_trustedClientToken&ConnectionId=$connId&Sec-MS-GEC=$gec&Sec-MS-GEC-Version=$_secMsGecVersion';
 
-    final client = HttpClient();
+    final client = DnsHttpClient(SecureDnsService.instance);
     client.userAgent =
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/$_chromiumVersion Safari/537.36 Edg/$_chromiumVersion';
 
@@ -542,7 +543,7 @@ class EdgeTtsService {
           'Accept-Language': 'en-US,en;q=0.9',
           'Cookie': 'muid=${_generateMuid()};',
         },
-      ).timeout(const Duration(seconds: 7));
+      ).timeout(const Duration(seconds: 20));
 
       final configMsg = 'X-Timestamp:${_dateToString()}\r\n'
           'Content-Type:application/json; charset=utf-8\r\n'
@@ -612,6 +613,7 @@ class EdgeTtsService {
       try {
         await ws?.close();
       } catch (_) {}
+      client.close(force: true);
     }
   }
 

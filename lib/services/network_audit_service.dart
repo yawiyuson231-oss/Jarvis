@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'secure_dns_service.dart';
+import 'settings_service.dart';
+
 /// Active device discovered on the local Wi-Fi subnet.
 class NetworkDevice {
   final String ip;
@@ -34,6 +37,8 @@ class NetworkAuditReport {
   final List<String> vulnerabilities;
   final int pingLatencyMs;
   final DateTime auditedAt;
+  final String? auditError;
+  final String dnsSummary;
 
   NetworkAuditReport({
     required this.localIp,
@@ -44,6 +49,8 @@ class NetworkAuditReport {
     required this.vulnerabilities,
     required this.pingLatencyMs,
     required this.auditedAt,
+    this.auditError,
+    this.dnsSummary = 'DNS configuration not assessed',
   });
 }
 
@@ -163,7 +170,7 @@ class NetworkAuditService extends ChangeNotifier {
       }
 
       if (vulnerabilities.isEmpty) {
-        vulnerabilities.add('No critical unencrypted management ports exposed.');
+        vulnerabilities.add('No tested plaintext management ports responded. This is a limited port probe, not a full security assessment.');
       }
 
       _lastReport = NetworkAuditReport(
@@ -175,36 +182,24 @@ class NetworkAuditService extends ChangeNotifier {
         vulnerabilities: vulnerabilities,
         pingLatencyMs: pingLatency,
         auditedAt: DateTime.now(),
+        dnsSummary: _dnsSummary(),
       );
 
       return _lastReport!;
-    } catch (_) {
-      // Return baseline audit report
+    } catch (error) {
+      // A failed scan is not evidence that the network is secure. Never invent
+      // devices, a firewall result, latency or a reassuring security score.
       _lastReport = NetworkAuditReport(
-        localIp: '192.168.1.105',
-        subnetPrefix: '192.168.1.0/24',
-        totalDevicesFound: 3,
-        devices: [
-          NetworkDevice(
-            ip: '192.168.1.1',
-            mac: '00:1A:2B:3C:4D:5E',
-            vendor: 'Cisco / Linksys Gateway',
-            hostname: 'Wi-Fi Router',
-            openPorts: [80, 443],
-            isGateway: true,
-          ),
-          NetworkDevice(
-            ip: '192.168.1.105',
-            mac: 'Local-Device',
-            vendor: 'Motorola Mobility',
-            hostname: 'J.A.R.V.I.S. Host Device',
-            openPorts: [],
-          ),
-        ],
-        securityScore: 95,
-        vulnerabilities: ['Subnet firewall active and secured.'],
-        pingLatencyMs: 14,
+        localIp: 'Unavailable',
+        subnetPrefix: 'Unavailable',
+        totalDevicesFound: 0,
+        devices: const [],
+        securityScore: 0,
+        vulnerabilities: const [],
+        pingLatencyMs: 0,
         auditedAt: DateTime.now(),
+        auditError: 'Local network scan unavailable: $error',
+        dnsSummary: _dnsSummary(),
       );
       return _lastReport!;
     } finally {
@@ -255,9 +250,17 @@ class NetworkAuditService extends ChangeNotifier {
     return 'Network Node';
   }
 
+  String _dnsSummary() {
+    final mode = SettingsService.instance.dnsSettings.modeLabel;
+    return '$mode · ${SecureDnsService.instance.statusLabel} · JARVIS scope only';
+  }
+
   /// Spoken Stark telemetry report of the network audit.
   Future<String> getSpokenAuditReport() async {
     final report = await auditNetwork();
+    if (report.auditError != null) {
+      return '${report.auditError} ${report.dnsSummary}';
+    }
     final count = report.totalDevicesFound;
     final score = report.securityScore;
     final ping = report.pingLatencyMs;
@@ -265,7 +268,7 @@ class NetworkAuditService extends ChangeNotifier {
     final cameras = report.devices.where((d) => d.isCameraStream).length;
     final cameraStr = cameras > 0 ? ' Discovered $cameras active IP camera streams.' : '';
 
-    return 'Network cyber audit complete, sir. $count connected devices detected on local subnet ${report.subnetPrefix}. Gateway ping latency is $ping milliseconds. Overall security score is $score out of 100.$cameraStr All shields operational.';
+    return 'Network cyber audit complete, sir. $count connected devices detected on local subnet ${report.subnetPrefix}. The limited port probe took $ping milliseconds. Overall security score is $score out of 100.$cameraStr ${report.dnsSummary}';
   }
 }
 

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../app.dart';
 import '../models/task_history_entry.dart';
+import '../screens/settings/dns_security_screen.dart';
 import '../widgets/airspace_radar_dialog.dart';
 import '../widgets/brain_dump_dialog.dart';
 import '../widgets/network_audit_dialog.dart';
@@ -43,6 +44,7 @@ import 'polyglot_diplomat_service.dart';
 import 'proactive_agent_service.dart';
 import 'routine_automation_service.dart';
 import 'screen_automation_service.dart';
+import 'secure_dns_service.dart';
 import 'security_alert_service.dart';
 import 'sentry_service.dart';
 import 'settings_service.dart';
@@ -80,6 +82,8 @@ class JarvisService extends ChangeNotifier {
     _initListeners();
   }
   static final JarvisService instance = JarvisService._();
+
+  final http.Client _dnsClient = SecureDnsService.instance.httpClient();
 
   final VoiceService _voice = VoiceService.instance;
   final AiService _ai = AiService.instance;
@@ -1453,6 +1457,15 @@ class JarvisService extends ChangeNotifier {
       return;
     }
 
+    // DNS policy is opened for review, never silently changed by voice.
+    if (lower.contains('dns security') || lower.contains('dns settings') ||
+        lower.contains('dns status') || lower.contains('secure dns') ||
+        lower.contains('advanced dns') || lower.contains('check dns')) {
+      await _openDnsSecurityControls();
+      await _startFollowUpListening();
+      return;
+    }
+
     // -----------------------------------------------------------------
     // Superpower 9: 🛡️ Network Cyber Security Audit & Wi-Fi Scanner
     // -----------------------------------------------------------------
@@ -2811,6 +2824,10 @@ Mastering the boundless road.
         await _voice.speak(solveResult.spokenSummary);
         break;
 
+      case JarvisIntentType.dnsSecurity:
+        await _openDnsSecurityControls();
+        break;
+
       case JarvisIntentType.networkAudit:
         _phase = JarvisPhase.thinking;
         _statusMessage = 'NETWORK SECURITY AUDIT';
@@ -2973,13 +2990,28 @@ Mastering the boundless road.
     }
   }
 
+  Future<void> _openDnsSecurityControls() async {
+    final dns = SecureDnsService.instance;
+    final settings = SettingsService.instance.dnsSettings;
+    _phase = JarvisPhase.speaking;
+    _statusMessage = 'DNS SECURITY // JARVIS SCOPE';
+    PrivateAgentApp.navigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const DnsSecurityScreen()),
+    );
+    _lastJarvisSpeech = 'DNS mode is ${settings.modeLabel}. ${dns.statusLabel}. '
+        'This covers JARVIS network connections, not other Android apps. '
+        'Review and confirm any policy changes on the settings screen.';
+    notifyListeners();
+    await _voice.speak(_lastJarvisSpeech);
+  }
+
   /// Resolves the exact top YouTube video ID for instant playback without search friction.
   Future<String?> _resolveTopYouTubeVideoId(String query) async {
     try {
       final url = Uri.parse(
         'https://www.youtube.com/results?search_query=${Uri.encodeComponent(query)}',
       );
-      final resp = await http.get(url, headers: {
+      final resp = await _dnsClient.get(url, headers: {
         'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       }).timeout(const Duration(seconds: 4));

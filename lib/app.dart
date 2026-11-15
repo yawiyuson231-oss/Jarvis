@@ -4,6 +4,7 @@ import 'screens/home/home_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'services/charging_telemetry_service.dart';
 import 'services/settings_service.dart';
+import 'services/secure_dns_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/arc_reactor_charging_dialog.dart';
 
@@ -26,6 +27,7 @@ class _PrivateAgentAppState extends State<PrivateAgentApp> {
   @override
   void initState() {
     super.initState();
+    SecureDnsService.instance.install();
     _settings.addListener(_onSettingsChanged);
     ChargingTelemetryService.instance.showCinematicHud
         .addListener(_onChargingHudTriggered);

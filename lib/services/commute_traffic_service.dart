@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 import 'calendar_reminder_service.dart';
+import 'secure_dns_service.dart';
 import 'settings_service.dart';
 
 /// Traffic congestion severity level.
@@ -56,7 +57,7 @@ class CommuteTrafficService extends ChangeNotifier {
   CommuteTrafficService._();
   static final CommuteTrafficService instance = CommuteTrafficService._();
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   CommuteStatus? _lastStatus;
   CommuteStatus? get lastStatus => _lastStatus;

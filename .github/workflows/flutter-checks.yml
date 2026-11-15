@@ -1,0 +1,78 @@
+name: Flutter checks
+
+# Runs the project's static analysis and the DNS security test suites on a
+# hosted runner. Flutter 3.44.9 bundles Dart 3.12.2, which is the SDK line
+# declared in pubspec.yaml (sdk: ^3.12.2) and pubspec.lock.
+on:
+  push:
+    branches:
+      - 'arena/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-and-test:
+    name: Analyze + DNS tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: true
+
+      - name: Toolchain versions
+        run: |
+          flutter --version
+          dart --version
+
+      - name: Resolve packages
+        run: flutter pub get
+
+      - name: flutter analyze
+        id: analyze
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter analyze --no-pub 2>&1 | tee flutter-analyze.log
+
+      - name: flutter test (DNS suites)
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          flutter test --no-pub --reporter expanded \
+            test/dns_message_test.dart \
+            test/dns_security_test.dart \
+            test/dns_resolver_test.dart \
+            test/secure_dns_service_test.dart 2>&1 | tee flutter-test.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-check-logs
+          path: |
+            flutter-analyze.log
+            flutter-test.log
+          if-no-files-found: warn
+
+      - name: Report result
+        if: always()
+        run: |
+          echo "analyze: ${{ steps.analyze.outcome }}"
+          echo "tests:   ${{ steps.tests.outcome }}"
+          if [ "${{ steps.analyze.outcome }}" != "success" ] || [ "${{ steps.tests.outcome }}" != "success" ]; then
+            exit 1
+          fi

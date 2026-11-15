@@ -6,6 +6,8 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
+import 'secure_dns_service.dart';
+
 import 'ai_service.dart';
 import 'app_launcher_service.dart';
 import 'app_usage_service.dart';
@@ -32,7 +34,7 @@ class JarvisToolsService {
   static const MethodChannel _channel =
       MethodChannel('com.privateagent/accessibility');
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   // ------------------------------------------------------------------
   // 1. Live Breaking News (Google News & Bing News Multi-Feed)

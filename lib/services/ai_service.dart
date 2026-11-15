@@ -7,6 +7,7 @@ import 'conversational_memory_service.dart';
 import 'hermes_evolution_service.dart';
 import 'personality_service.dart';
 import 'settings_service.dart';
+import 'secure_dns_service.dart';
 
 /// Error thrown for any AI-gateway failure (network, auth, bad payload).
 class AiException implements Exception {
@@ -53,6 +54,7 @@ enum JarvisIntentType {
   multiTaskDump,
   opticalSolver,
   networkAudit,
+  dnsSecurity,
 }
 
 class JarvisIntent {
@@ -266,6 +268,16 @@ class JarvisIntent {
         type: JarvisIntentType.opticalSolver,
         spoken: 'Real-time optical HUD solver active, sir.',
         toolArg: command,
+      );
+    }
+
+    // Read-only DNS controls: security policy changes require the settings UI.
+    if (lower.contains('dns security') || lower.contains('dns settings') ||
+        lower.contains('dns status') || lower.contains('secure dns') ||
+        lower.contains('advanced dns') || lower.contains('check dns')) {
+      return const JarvisIntent(
+        type: JarvisIntentType.dnsSecurity,
+        spoken: 'Opening the JARVIS DNS security controls, sir.',
       );
     }
 
@@ -622,7 +634,7 @@ class AiService {
   AiService._();
   static final AiService instance = AiService._();
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   /// True for local backends (Ollama etc.) that accept any/empty API key.
   bool get _isLocalBackend {
@@ -944,6 +956,7 @@ AVAILABLE PROTOCOLS & TOOLS:
 - "multi_task_dump": Deconstruct chaotic multi-sentence stream-of-consciousness dump into parallel tasks.
 - "optical_solver": Real-time camera HUD solver for math equations, screen error stack traces, split bills.
 - "network_audit": Wi-Fi subnet security scanner, device ARP discovery, and open port auditor.
+- "dns_security": Open JARVIS-only DNS security settings and report current status. Never change security mode from a voice command.
 - "system": Hardware controls: volume_up, volume_down, mute, unmute, brightness_up, brightness_down, screenshot, home, back.
 - "action": Full on-device UI automation (e.g. install apps, open apps, play video on YouTube, change app settings).
 - "chat": Conversational questions, greetings, jokes, math, ideas, or advice.
@@ -953,7 +966,7 @@ Analyze the user's voice command:
 
 Respond with ONLY a single JSON object:
 {
-  "type": "routine" | "finance" | "sports" | "todo" | "notes" | "calendar" | "email" | "message" | "vision" | "multistep" | "smart_home" | "commute" | "macro" | "news" | "workflow" | "web_search" | "weather" | "battery" | "datetime" | "torch" | "air_gestures" | "charging_telemetry" | "polyglot_diplomat" | "code_black" | "floating_copilot" | "airspace_radar" | "multi_task_dump" | "optical_solver" | "network_audit" | "system" | "action" | "chat",
+  "type": "routine" | "finance" | "sports" | "todo" | "notes" | "calendar" | "email" | "message" | "vision" | "multistep" | "smart_home" | "commute" | "macro" | "news" | "workflow" | "web_search" | "weather" | "battery" | "datetime" | "torch" | "air_gestures" | "charging_telemetry" | "polyglot_diplomat" | "code_black" | "floating_copilot" | "airspace_radar" | "multi_task_dump" | "optical_solver" | "network_audit" | "dns_security" | "system" | "action" | "chat",
   "tool_arg": "<topic, query, city, 'on'|'off', system command, or action goal>",
   "spoken": "<Polite, articulate verbal acknowledgment in your chosen persona style to speak aloud immediately. If type is 'chat', provide the complete direct answer here>"
 }
@@ -1101,6 +1114,10 @@ Respond with ONLY a single JSON object:
             case 'optical_solver':
             case 'solver':
               type = JarvisIntentType.opticalSolver;
+              break;
+            case 'dns_security':
+            case 'dns':
+              type = JarvisIntentType.dnsSecurity;
               break;
             case 'network_audit':
             case 'network':

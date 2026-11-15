@@ -39,6 +39,32 @@ Unlike conventional voice assistants that merely return web searches or canned v
 
 ---
 
+## 🛡️ Advanced DNS Security (JARVIS Connections)
+
+JARVIS now includes an application-scoped DNS security layer for its Dart HTTP and
+neural-voice WebSocket connections:
+
+- **Advanced / strict mode by default:** authenticated DNS-over-HTTPS (DoH),
+  fail-closed resolution and HTTPS-only remote APIs.
+- **Compatibility mode:** encrypted DNS while retaining existing remote HTTP APIs.
+- **System DNS mode:** an explicit, confirmed opt-out from this module.
+- Cloudflare Security/Family/Standard presets plus validated custom DoH endpoints
+  with published IPv4/IPv6 bootstrap IPs.
+- TTL-bounded caching, query coalescing, resolver failover, DNS-rebinding guards,
+  live connection/filtering checks and memory-only diagnostics.
+- Local Ollama loopback access is preserved; trusted private-LAN HTTP is an
+  explicit exception.
+
+Open **Settings → Network Privacy & DNS → Advanced DNS security**, or say
+**“Hey Jarvis, DNS security.”** Voice opens the controls; it does not silently
+change security policy.
+
+> **Scope:** this protects JARVIS-owned Dart networking, not other Android apps,
+> native speech recognition or plugin-owned network stacks. It is not a VPN and
+> does not modify Android Private DNS. See [DNS security details](docs/DNS_SECURITY.md).
+
+---
+
 ## 🚀 What's New in v1.1.0 — The Autonomous Triad
 
 Release **v1.1.0** introduces **The Autonomous Triad** upgrade:

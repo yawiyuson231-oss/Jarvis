@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/dns_security.dart';
+
 /// Interaction mode of the home screen.
 ///
 /// - [agent]: agent mode — tasks are executed on the device via the
@@ -130,6 +132,39 @@ class SettingsService extends ChangeNotifier {
   bool get useSystemPrompt => _prefs?.getBool('ai_use_system_prompt') ?? true;
   Future<void> setUseSystemPrompt(bool value) async {
     await _prefs?.setBool('ai_use_system_prompt', value);
+    notifyListeners();
+  }
+
+  // ------------------------------------------------------------------
+  // JARVIS-only DNS security (not Android-wide Private DNS)
+  // ------------------------------------------------------------------
+
+  DnsSettings get dnsSettings {
+    final modeName = _prefs?.getString('dns_mode') ?? 'advanced';
+    return DnsSettings(
+      // Corrupt/unknown values fail closed rather than silently disabling DNS.
+      mode: DnsSecurityMode.values.where((m) => m.name == modeName).firstOrNull ??
+          DnsSecurityMode.advanced,
+      providerId: _prefs?.getString('dns_provider') ?? 'cloudflare_security',
+      customEndpoint: _prefs?.getString('dns_custom_endpoint') ?? '',
+      customBootstrapAddresses: _prefs?.getString('dns_custom_bootstrap') ?? '',
+      allowPrivateLan: _prefs?.getBool('dns_allow_private_lan') ?? true,
+    );
+  }
+
+  /// Persist the complete policy in one notification. Validate before changing
+  /// away from System DNS so a typo cannot silently downgrade protection.
+  Future<void> setDnsSettings(DnsSettings value) async {
+    value.validate();
+    final prefs = _prefs;
+    if (prefs == null) {
+      throw StateError('Initialize SettingsService before changing DNS settings.');
+    }
+    await prefs.setString('dns_mode', value.mode.name);
+    await prefs.setString('dns_provider', value.providerId);
+    await prefs.setString('dns_custom_endpoint', value.customEndpoint.trim());
+    await prefs.setString('dns_custom_bootstrap', value.customBootstrapAddresses.trim());
+    await prefs.setBool('dns_allow_private_lan', value.allowPrivateLan);
     notifyListeners();
   }
 

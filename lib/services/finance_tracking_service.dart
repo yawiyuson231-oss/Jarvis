@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'secure_dns_service.dart';
+
 class CryptoQuote {
   final String name;
   final String symbol;
@@ -20,7 +22,7 @@ class FinanceTrackingService {
   FinanceTrackingService._();
   static final FinanceTrackingService instance = FinanceTrackingService._();
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   /// Fetches live cryptocurrency quotes via public CoinGecko API.
   Future<List<CryptoQuote>> getTopCryptoQuotes() async {

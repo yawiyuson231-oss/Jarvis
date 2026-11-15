@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../../services/personality_service.dart';
 import '../../services/settings_service.dart';
 import '../../services/telegram_service.dart';
+import '../../services/secure_dns_service.dart';
 import '../../widgets/glass_widgets.dart';
+import 'dns_security_screen.dart';
 import 'jarvis_settings_screen.dart';
 import 'permissions_screen.dart';
 
@@ -258,6 +260,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: const Color(0xFF00E5FF),
                 ),
                 _jarvisCard(),
+                const SizedBox(height: 22),
+
+                _sectionHeader(
+                  icon: Icons.dns_rounded,
+                  title: 'Network Privacy & DNS',
+                  color: const Color(0xFF00E5FF),
+                ),
+                _dnsSecurityCard(),
                 const SizedBox(height: 22),
 
                 _sectionHeader(
@@ -592,6 +602,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _dnsSecurityCard() {
+    final dns = SecureDnsService.instance;
+    final settings = _settings.dnsSettings;
+    return ListenableBuilder(
+      listenable: dns,
+      builder: (context, _) => GlassCard(
+        borderRadius: 22,
+        padding: EdgeInsets.zero,
+        borderColor: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const DnsSecurityScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(children: [
+              const Icon(Icons.shield_lock_outlined, color: Color(0xFF00E5FF), size: 30),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Advanced DNS security', style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text(settings.modeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(dns.statusLabel, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 10),
+                const Wrap(spacing: 6, runSpacing: 6, children: [
+                  GlassPill(label: 'JARVIS connections only', color: Color(0xFF00E5FF)),
+                  GlassPill(label: 'No VPN', color: Color(0xFF818CF8)),
+                ]),
+              ])),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+            ]),
           ),
         ),
       ),

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'secure_dns_service.dart';
 import 'settings_service.dart';
 
 /// Representation of a Home Assistant / IoT smart device entity.
@@ -34,7 +35,7 @@ class SmartHomeService extends ChangeNotifier {
   SmartHomeService._();
   static final SmartHomeService instance = SmartHomeService._();
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   final List<SmartDeviceEntity> _entities = [];
   List<SmartDeviceEntity> get entities => List.unmodifiable(_entities);

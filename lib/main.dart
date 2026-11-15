@@ -11,6 +11,7 @@ import 'services/hermes_evolution_service.dart';
 import 'services/jarvis_service.dart';
 import 'services/native_bridge_service.dart';
 import 'services/screen_automation_service.dart';
+import 'services/secure_dns_service.dart';
 import 'services/sentry_service.dart';
 import 'services/settings_service.dart';
 import 'services/task_executor.dart';
@@ -23,6 +24,8 @@ Future<void> main() async {
 
   final settings = SettingsService.instance;
   await settings.init();
+  // Before any lazy HTTP client, voice service or agent network request.
+  SecureDnsService.instance.install();
 
   final executor = TaskExecutor.instance;
   await executor.init();
@@ -149,7 +152,9 @@ void _wireOverlayCommands(TaskExecutor executor) {
 /// running in its own isolate). Must stay a top-level function annotated
 /// with vm:entry-point.
 @pragma('vm:entry-point')
-void overlayMain() {
+Future<void> overlayMain() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SettingsService.instance.init();
+  SecureDnsService.instance.install();
   runApp(const OverlayApp());
 }

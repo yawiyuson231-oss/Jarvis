@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/task_history_entry.dart';
+import 'secure_dns_service.dart';
 import 'settings_service.dart';
 
 /// Remote control through a Telegram bot.
@@ -19,7 +20,7 @@ class TelegramService extends ChangeNotifier {
   TelegramService._();
   static final TelegramService instance = TelegramService._();
 
-  final http.Client _client = http.Client();
+  final http.Client _client = SecureDnsService.instance.httpClient();
 
   bool _running = false;
   int _consecutiveErrors = 0;
