@@ -222,41 +222,26 @@ Future<Uint8List> postDnsOverHttps(
     ..userAgent = null
     ..autoUncompress = false
     ..badCertificateCallback = null
-    ..connectionFactory = (url, proxyHost, proxyPort) {
+    ..connectionFactory = (url, proxyHost, proxyPort) async {
       if (proxyHost != null || url.host != endpoint.host || url.port != endpoint.port) {
         throw const DnsResolutionException('Unexpected DoH transport destination.');
       }
-      var cancelled = false;
-      void Function()? cancel;
-      final future = () async {
-        final task = await Socket.startConnect(bootstrap, endpoint.port);
-        cancel = task.cancel;
-        Socket? socket;
-        try {
-          if (cancelled) throw const SocketException('DoH connection cancelled.');
-          socket = await task.socket;
-          if (cancelled) throw const SocketException('DoH connection cancelled.');
-          final secure = await SecureSocket.secure(
-            socket,
-            host: endpoint.host,
-            supportedProtocols: ['http/1.1'],
-          );
-          socket = null; // SecureSocket now owns the underlying socket.
-          if (cancelled) {
-            secure.destroy();
-            throw const SocketException('DoH connection cancelled.');
-          }
-          cancel = secure.destroy;
-          return secure;
-        } catch (_) {
-          socket?.destroy();
-          rethrow;
-        }
-      }();
-      return Future.value(ConnectionTask.fromSocket<Socket>(future, () {
-        cancelled = true;
-        cancel?.call();
-      }));
+      final task = await Socket.startConnect(bootstrap, endpoint.port);
+      Socket? socket;
+      try {
+        socket = await task.socket;
+        final secure = await SecureSocket.secure(
+          socket,
+          host: endpoint.host,
+          supportedProtocols: ['http/1.1'],
+        );
+        socket = null; // SecureSocket now owns the underlying socket.
+        return ConnectionTask.fromSocket<Socket>(Future.value(secure), secure.destroy);
+      } catch (_) {
+        socket?.destroy();
+        task.cancel();
+        rethrow;
+      }
     };
 
   HttpClientRequest? request;

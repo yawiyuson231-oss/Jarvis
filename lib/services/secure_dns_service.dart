@@ -343,20 +343,24 @@ class DnsHttpClient implements HttpClient {
     client.badCertificateCallback = null;
     client.findProxy = settings.isEncrypted ? (_) => 'DIRECT' : null;
     client.connectionFactory = settings.isEncrypted
-        ? (uri, proxyHost, proxyPort) {
+        ? (uri, proxyHost, proxyPort) async {
             if (proxyHost != null) {
               throw const DnsConfigurationException('Proxies are not supported in encrypted DNS modes.');
             }
             var cancelled = false;
             void Function()? cancel;
-            final socket = _service._openSocket(
+            // Resolve and connect before handing back a ConnectionTask: an
+            // already-failed task.socket can surface as an uncaught zone error.
+            // _openSocket bounds each attempt itself (5s connect/TLS).
+            final socket = await _service._openSocket(
               uri, settings, _context, generation,
               () => cancelled, (callback) => cancel = callback,
             );
-            return Future.value(ConnectionTask.fromSocket<Socket>(socket, () {
+            return ConnectionTask.fromSocket<Socket>(Future.value(socket), () {
               cancelled = true;
               cancel?.call();
-            }));
+              socket.destroy();
+            });
           }
         : null;
     return client;

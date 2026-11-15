@@ -81,7 +81,7 @@ void main() {
   test('IPv6 and IPv4 records are returned without a system lookup', () async {
     final types = <int>[];
     final resolver = DnsResolver(profile: profile, transport: (p, q, t) async {
-      final type = q[q.length - 4];
+      final type = ByteData.sublistView(q).getUint16(q.length - 4);
       types.add(type);
       final ipv6 = List<int>.filled(16, 0);
       ipv6[0] = 0x26;
@@ -99,12 +99,13 @@ void main() {
     var calls = 0;
     final resolver = DnsResolver(profile: profile, transport: (p, q, t) async {
       calls++;
-      return dnsResponse(q, addresses: [[0, 0, 0, 0]]);
+      final type = ByteData.sublistView(q).getUint16(q.length - 4);
+      return dnsResponse(q, addresses: [List<int>.filled(type == 28 ? 16 : 4, 0)]);
     });
     final reply = await resolver.lookup('blocked.example', 1);
     expect(reply.isSinkholed, isTrue);
-    await expectLater(resolver.resolveHost('blocked.example'), throwsA(isA<DnsResolutionException>()));
-    expect(calls, 3); // cached A + AAAA lookup, no alternate-provider retry
+    await expectLater(() => resolver.resolveHost('blocked.example'), throwsA(isA<DnsResolutionException>()));
+    expect(calls, 2); // cached A + one AAAA lookup, no alternate-provider retry
     expect(resolver.stats.sinkholedReplies, 2);
     resolver.dispose();
   });
