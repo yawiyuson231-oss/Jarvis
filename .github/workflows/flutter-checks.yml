@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # needed to publish check output as commit comments
 
 concurrency:
   group: flutter-checks-${{ github.ref }}
@@ -67,6 +67,42 @@ jobs:
             flutter-analyze.log
             flutter-test.log
           if-no-files-found: warn
+
+      - name: Publish logs as commit comments
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re, subprocess
+
+          for name in ('flutter-analyze.log', 'flutter-test.log'):
+              path = pathlib.Path(name)
+              if not path.exists():
+                  continue
+              text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', path.read_text(errors='replace'))
+              chunks, current = [], ''
+              for line in text.splitlines():
+                  if len(current) + len(line) + 1 > 50000:
+                      chunks.append(current)
+                      current = ''
+                  current += line + '\n'
+              if current.strip():
+                  chunks.append(current)
+              if not chunks:
+                  chunks = ['(empty output)']
+              for index, chunk in enumerate(chunks, 1):
+                  body = f'**{name}** ({index}/{len(chunks)})\n\n```\n{chunk}\n```'
+                  subprocess.run(
+                      ['gh', 'api', '--method', 'POST',
+                       f"repos/{os.environ['REPO']}/commits/{os.environ['SHA']}/comments",
+                       '-f', f'body={body}'],
+                      check=True, stdout=subprocess.DEVNULL,
+                  )
+              print(f'published {name}: {len(chunks)} comment(s)')
+          PY
 
       - name: Report result
         if: always()
