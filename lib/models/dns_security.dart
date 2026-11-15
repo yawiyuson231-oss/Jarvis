@@ -116,12 +116,22 @@ class DnsProviderProfile {
         'DoH needs HTTPS, a valid port, and no credentials, query or fragment.',
       );
     }
-    if (InternetAddress.tryParse(uri.host) == null) normalizeHost(uri.host);
+    if (InternetAddress.tryParse(uri.host) == null) {
+      final host = normalizeHost(uri.host);
+      if (host.contains('_')) {
+        throw const DnsConfigurationException(
+          'DoH hostname labels cannot contain underscores.',
+        );
+      }
+    }
     return uri;
   }
 
   static List<String> parseBootstrapAddresses(String value) {
-    final items = value.split(RegExp(r'[\s,;]+')).where((s) => s.isNotEmpty);
+    final items = value.split(RegExp(r'[\s,;]+')).where((s) => s.isNotEmpty).toList();
+    if (items.isEmpty || items.length > 8) {
+      throw const DnsConfigurationException('Provide between 1 and 8 resolver IP addresses.');
+    }
     final addresses = <String>[];
     for (final item in items) {
       final address = InternetAddress.tryParse(item);

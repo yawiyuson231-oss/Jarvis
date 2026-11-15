@@ -75,7 +75,9 @@ void main() {
   test('accepts compressed CNAME chains and ignores unrelated answers', () {
     // Answer 1: example.com CNAME target.example.com; answer 2: target A.
     final header = Uint8List.fromList(query.sublist(0, 12));
-    ByteData.sublistView(header).setUint16(6, 3);
+    ByteData.sublistView(header)
+      ..setUint16(2, 0x8180)
+      ..setUint16(6, 3);
     final packet = BytesBuilder()..add(header)..add(query.sublist(12))
       ..add([0xc0, 0x0c, 0, 5, 0, 1, 0, 0, 0, 60]);
     final cname = <int>[6, 116, 97, 114, 103, 101, 116, 0xc0, 0x14]; // target -> .example.com
@@ -105,7 +107,9 @@ void main() {
     record('target.example.com', 1, [203, 0, 113, 7]);
     record('example.com', 5, _encodeName('target.example.com'));
     final header = Uint8List.fromList(query.sublist(0, 12));
-    ByteData.sublistView(header).setUint16(6, 2);
+    ByteData.sublistView(header)
+      ..setUint16(2, 0x8180)
+      ..setUint16(6, 2);
     final packet = BytesBuilder()..add(header)..add(query.sublist(12))..add(answers.toBytes());
     expect(DnsMessage.decodeReply(packet.takeBytes(), question).addresses.single, [203, 0, 113, 7]);
   });
@@ -121,7 +125,9 @@ void main() {
       answers.add(data);
     }
     final header = Uint8List.fromList(query.sublist(0, 12));
-    ByteData.sublistView(header).setUint16(6, 2);
+    ByteData.sublistView(header)
+      ..setUint16(2, 0x8180)
+      ..setUint16(6, 2);
     final packet = BytesBuilder()..add(header)..add(query.sublist(12))..add(answers.toBytes());
     expect(() => DnsMessage.decodeReply(packet.takeBytes(), question), throwsA(isA<DnsProtocolException>()));
   });

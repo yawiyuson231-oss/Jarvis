@@ -17,8 +17,13 @@ void main() {
   final settings = SettingsService.instance;
   final dns = SecureDnsService.instance;
 
+  // setMockInitialValues replaces the platform store, but SettingsService keeps
+  // the first instance it bound to. Set the mock once, then clear that instance.
+  setUpAll(() => SharedPreferences.setMockInitialValues({}));
+
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
     await settings.init();
     await settings.setDnsSettings(const DnsSettings(
       providerId: 'custom', customEndpoint: testProfileEndpoint,
@@ -145,7 +150,10 @@ void main() {
     expect(find.text('DNS security'), findsOneWidget);
     expect(find.text(SecureDnsService.coverageNotice), findsOneWidget);
     expect(find.text('Configured · run a connection check'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Apply DNS settings'), 250);
+    await tester.scrollUntilVisible(
+      find.text('Apply DNS settings'), 250,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Apply DNS settings'), findsOneWidget);
   });
 }

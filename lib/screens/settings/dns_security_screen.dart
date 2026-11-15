@@ -141,29 +141,32 @@ class _DnsSecurityScreenState extends State<DnsSecurityScreen> {
                   const Text('Global anycast presets · JARVIS connections only',
                       style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 12),
-                  RadioGroup<String>(
-                    groupValue: _draft.providerId,
-                    onChanged: (value) {
-                      if (_saving || value == null) return;
-                      setState(() => _draft = _draft.copyWith(providerId: value));
-                    },
-                    child: Column(children: [
-                      for (final profile in DnsProviderProfile.presets)
-                        RadioListTile<String>(
-                          value: profile.id,
+                  Material(
+                    type: MaterialType.transparency,
+                    child: RadioGroup<String>(
+                      groupValue: _draft.providerId,
+                      onChanged: (value) {
+                        if (_saving || value == null) return;
+                        setState(() => _draft = _draft.copyWith(providerId: value));
+                      },
+                      child: Column(children: [
+                        for (final profile in DnsProviderProfile.presets)
+                          RadioListTile<String>(
+                            value: profile.id,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: Text(profile.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                            subtitle: Text(profile.description, style: const TextStyle(fontSize: 12)),
+                          ),
+                        const RadioListTile<String>(
+                          value: 'custom',
                           contentPadding: EdgeInsets.zero,
                           dense: true,
-                          title: Text(profile.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          subtitle: Text(profile.description, style: const TextStyle(fontSize: 12)),
+                          title: Text('Custom DoH resolver', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                          subtitle: Text('RFC 8484 POST · HTTPS · valid certificate required', style: TextStyle(fontSize: 12)),
                         ),
-                      const RadioListTile<String>(
-                        value: 'custom',
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: Text('Custom DoH resolver', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: Text('RFC 8484 POST · HTTPS · valid certificate required', style: TextStyle(fontSize: 12)),
+                      ]),
                       ),
-                    ]),
                   ),
                   if (_draft.providerId == 'custom') ...[
                     const SizedBox(height: 10),
